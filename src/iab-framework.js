@@ -4,6 +4,7 @@ import browser from 'webextension-polyfill';
 import moment from 'moment';
 import createPageChannel from './page-actions';
 import { EUConsentCookie, LocalStorageConsent, OilCookie } from './iab-vendors';
+import { sendTelemetry } from './telemetry';
 
 export const PURPOSES = {
   1: 'Information storage and access',
@@ -35,6 +36,7 @@ export async function hasIabConsent(tab) {
   if (hasCmp) {
     const consent = await page.getConsentData();
     if (!consent) {
+      sendTelemetry({}, 'metrics.consentric.iab.cmpNoData');
       return false;
     }
     const { purposeConsents, vendorConsents, metadata } = await page.getVendorConsents();
@@ -46,7 +48,8 @@ export async function hasIabConsent(tab) {
       new LocalStorageConsent(page),
       new OilCookie(tab)
     ];
-    consent.writeable = (await Promise.all(consent.storage.map((sto) => sto.exists()))).some((v) => v);
+    const existanceChecks = await Promise.all(consent.storage.map((sto) => sto.exists()));
+    consent.writeable = existanceChecks.some((v) => v);
     return consent;
   } else {
     return false;
@@ -141,7 +144,7 @@ export class ReadOnlyWarning extends Component {
 export class IABConsent extends Component {
 
   async onChange(allowed) {
-    const { consent, tab } = this.props;
+    const { consent, tab, site } = this.props;
     const consentData = new ConsentString(consent.consentData);
     consentData.setPurposesAllowed(allowed);
     await setConsentCookie(tab, consent, consentData);
@@ -150,6 +153,10 @@ export class IABConsent extends Component {
     });
     this.setState({ consent, tab });
     browser.tabs.reload(tab.id);
+    sendTelemetry({
+      site,
+      allowed: allowed.length,
+    }, 'metrics.consentric.iab.changed');
   }
 
   render() {

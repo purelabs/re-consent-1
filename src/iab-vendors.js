@@ -1,7 +1,5 @@
 import browser from 'webextension-polyfill';
 
-const localStorageKey = 'crfgL0cSt0r';
-
 async function isThirdPartyIsolateEnabled() {
   if (browser.privacy && browser.privacy.websites.firstPartyIsolate) {
     const isolateEnabled = await browser.privacy.websites.firstPartyIsolate.get({});

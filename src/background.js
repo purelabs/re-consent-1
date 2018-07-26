@@ -1,3 +1,4 @@
+import { sendTelemetry } from './telemetry';
 
 chrome.runtime.onConnect.addListener((port) => {
   if (!port.sender.tab) {
@@ -5,9 +6,15 @@ chrome.runtime.onConnect.addListener((port) => {
   }
   const tabId = port.sender.tab.id;
   port.onMessage.addListener((message) => {
-    console.log(message);
     if (message.cmp) {
       chrome.pageAction.show(tabId);
+      chrome.tabs.get(tabId, (tab) => {
+        const [,, site, ] = tab.url.split('/');
+        sendTelemetry({
+          type: 'iab',
+          site,
+        }, 'metrics.consentric.pageAction');
+      });
     }
   });
 });
