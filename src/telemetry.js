@@ -10,7 +10,9 @@ class ExtMessenger {
 	}
 
 	sendMessage(extensionId, message) {
-		chrome.runtime.sendMessage(extensionId, message, () => {});
+		chrome.runtime.sendMessage(extensionId, message, () => {
+			chrome.runtime.lastError;
+		});
 	}
 }
 
