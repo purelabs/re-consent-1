@@ -9,7 +9,7 @@ class Popup extends Component {
 
   componentWillMount() {
     browser.tabs.query({active: true, currentWindow: true}).then(async (tab) => {
-      const [,, site, ] = tab[0].url.split('/');
+      const site = new URL(tab[0].url).host;
       this.setState({ tab: tab[0], site });
       const iabConsent = await hasIabConsent(tab[0]);
       if (iabConsent) {

@@ -1,5 +1,7 @@
 import { sendTelemetry } from './telemetry';
 
+window.telemetrySentSites = new Set();
+
 chrome.runtime.onConnect.addListener((port) => {
   if (!port.sender.tab) {
     return;
@@ -9,7 +11,7 @@ chrome.runtime.onConnect.addListener((port) => {
     if (message.cmp) {
       chrome.pageAction.show(tabId);
       chrome.tabs.get(tabId, (tab) => {
-        const [,, site, ] = tab.url.split('/');
+        const site = new URL(tab.url).host;
         sendTelemetry({
           type: 'iab',
           site,

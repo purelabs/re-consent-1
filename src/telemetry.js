@@ -68,12 +68,11 @@ function sendTelemetry(message, schema) {
   return cliqzCore.sendTelemetry(message, false, schema, {});
 }
 
-function sendHumanWebMessage(message) {
-  console.log('xxx', message);
+function sendAnonymousTelemetry(message) {
   return cliqzHpn.telemetry(message);
 }
 
 export {
   sendTelemetry,
-  sendHumanWebMessage,
+  sendAnonymousTelemetry,
 };

@@ -4,7 +4,7 @@ import browser from 'webextension-polyfill';
 import moment from 'moment';
 import createPageChannel from './page-actions';
 import { EUConsentCookie, LocalStorageConsent, OilCookie } from './iab-vendors';
-import { sendTelemetry } from './telemetry';
+import { sendTelemetry, sendAnonymousTelemetry } from './telemetry';
 
 export const PURPOSES = {
   1: 'Information storage and access',
@@ -32,6 +32,7 @@ export async function setConsentCookie(tab, consent, newConsent) {
 
 export async function hasIabConsent(tab) {
   const page = createPageChannel(tab.id);
+  const site = new URL(tab.url).host;
   const hasCmp = await page.hasCmp()
   if (hasCmp) {
     const consent = await page.getConsentData();
@@ -43,17 +44,65 @@ export async function hasIabConsent(tab) {
     consent.purposeConsents = purposeConsents;
     consent.vendorConsents = vendorConsents;
     consent.metadata = metadata;
+    consent.consent = new ConsentString(consent.consentData);
     consent.storage = [
       new EUConsentCookie(tab, consent),
       new LocalStorageConsent(page),
       new OilCookie(tab)
     ];
-    const existanceChecks = await Promise.all(consent.storage.map((sto) => sto.exists()));
-    consent.writeable = existanceChecks.some((v) => v);
+    consent.storageChecks = await Promise.all(consent.storage.map((sto) => sto.exists()));
+    consent.writeable = consent.storageChecks.some((v) => v);
+    generateIABTelemetry(page, site, consent);
     return consent;
   } else {
     return false;
   }
+}
+
+/**
+ * Generates a message summarising the consent format on this page including:
+ *  - the site the consent was gathered on
+ *  - if we were able to write the consent on this site
+ *  - cmpId
+ *  - a sanitised version of the consent cookie
+ *  - names of cookies used (if the consent cookie is stored directly)
+ *  - whether consent is stored in local storage
+ *  - whether consent is stored with oil under the oil_data cookie
+ * @param {*} site
+ * @param {*} consent
+ */
+async function generateIABTelemetry(page, site, consent) {
+  // check if we already sent telemetry for this site
+  const telemetrySentSites = (await browser.runtime.getBackgroundPage()).telemetrySentSites;
+  if (telemetrySentSites.has(site)) {
+    return;
+  }
+  const consentString = new ConsentString(consent.consentData);
+  // scrub dates - this will prevent the consent string becoming a user identifer
+  consentString.created = new Date();
+  await addVendorList(page, consentString);
+  const payload = {
+    site,
+    writeable: consent.writeable,
+    cmpId: consent.consent.cmpId,
+    consentData: consentString.getConsentString(),
+    eucookie: consent.storage[0].cookies.map(c => ({
+      name: c.name,
+      domain: c.domain,
+      path: c.path
+    })),
+    lso: consent.storageChecks[1] === true ? lso.key : false,
+    oil: consent.storage[2].cookie ? {
+      name: consent.storage[2].cookie.name,
+      domain: consent.storage[2].cookie.domain,
+      path: consent.storage[2].cookie.path
+    } : false,
+  }
+  sendAnonymousTelemetry({
+    action: 'consentric.iab',
+    payload,
+  });
+  telemetrySentSites.add(site);
 }
 
 class ConsentButton extends Component {
@@ -160,8 +209,7 @@ export class IABConsent extends Component {
   }
 
   render() {
-    const { consentData, purposeConsents, gdprApplies, writeable } = this.props.consent;
-    const consent = new ConsentString(consentData);
+    const { consent, consentData, purposeConsents, gdprApplies, writeable } = this.props.consent;
     console.log('getVendorConsents', this.props.consent);
     console.log('consentCookieData', consent);
     const allowedPurposes = Object.keys(purposeConsents || {})

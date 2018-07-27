@@ -12,7 +12,7 @@ async function isThirdPartyIsolateEnabled() {
 
 async function cookieWrapper(opts, url, thirdParty) {
   if (await isThirdPartyIsolateEnabled()) {
-    opts.firstPartyDomain = url.split('/')[2].replace('www.', '');
+    opts.firstPartyDomain = new URL(url).host.replace('www.', '');
   }
   return opts;
 }
